@@ -1,0 +1,1059 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ContoFacile — Contabilità Multiutente (Definitivo)</title>
+  <style>
+    :root{
+      --bg:#0f172a;--panel:#020617;--border:#334155;--text:#e5e7eb;--muted:#94a3b8;
+      --pos:#22c55e;--neg:#ef4444;--pri:#2563eb;--pri2:#1d4ed8;--danger:#991b1b;
+      --radius:14px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,Arial;background:var(--bg);color:var(--text)}
+    .container{max-width:1200px;margin:auto;padding:20px}
+    h1{margin:0}
+    .small{font-size:13px;color:var(--muted);margin-top:4px}
+    .muted{color:var(--muted)}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-top:14px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+    input,select,button,textarea{
+      padding:8px;border-radius:8px;border:1px solid var(--border);
+      background:var(--panel);color:var(--text);font-size:14px
+    }
+    textarea{min-height:80px;resize:vertical}
+    button{cursor:pointer}
+    button.primary{background:var(--pri);border-color:var(--pri)}
+    button.primary:hover{background:var(--pri2)}
+    button.danger{background:#7f1d1d;border-color:var(--danger)}
+    button.danger:hover{background:var(--danger)}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{padding:8px 6px;border-bottom:1px solid var(--border);text-align:left}
+    th{font-size:12px;color:var(--muted);text-transform:uppercase}
+    .pos{color:var(--pos);font-weight:700}
+    .neg{color:var(--neg);font-weight:700}
+    .right{text-align:right}
+    .summary{display:flex;gap:12px;margin:10px 0;flex-wrap:wrap}
+    .box{padding:10px 14px;border:1px solid var(--border);border-radius:12px}
+    .box b{font-size:18px}
+    .pill{display:inline-flex;gap:8px;align-items:center;border:1px solid var(--border);border-radius:999px;padding:6px 10px;color:var(--muted);font-size:13px}
+    .sep{height:1px;background:var(--border);margin:10px 0}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap}
+    .tabbtn{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--text)}
+    .tabbtn.active{background:var(--pri);border-color:var(--pri)}
+    .hidden{display:none !important}
+
+    .groupRow{background:rgba(148,163,184,.10)}
+    .monthRow{background:rgba(37,99,235,.15)}
+    .notfound{color:var(--neg);font-weight:900;text-align:center}
+
+    /* Modal */
+    .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:18px;z-index:10}
+    .modal{background:var(--panel);border-radius:16px;max-width:900px;width:100%;padding:16px;border:1px solid var(--border)}
+    .footer{margin-top:12px;display:flex;gap:10px;flex-wrap:wrap}
+
+    /* Error banner */
+    .err{border:1px solid var(--neg);background:rgba(239,68,68,.12);color:#fecaca;border-radius:12px;padding:10px 12px;margin-top:12px;display:none}
+  </style>
+</head>
+
+<body>
+<div class="container">
+  <h1>ContoFacile — Contabilità Multiutente (Definitivo)</h1>
+  <div class="small">Fix completo: compatibile con dati vecchi + nuove funzioni (Ricerca sotto, Movimenti per mese, Export PDF robusto).</div>
+
+  <div id="errBox" class="err"></div>
+
+  <!-- STICKY: Utente + Tabs + Riepilogo -->
+  <div class="card" style="position:sticky;top:0;z-index:3">
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div class="row">
+        <div class="pill">👤 Utente</div>
+        <select id="userSelect"></select>
+        <input id="newUser" placeholder="Nuovo utente (es. Famiglia)">
+        <button class="primary" id="btnAddUser">➕ Crea utente</button>
+        <span class="muted" id="userHint"></span>
+      </div>
+
+      <div class="tabs">
+        <button class="tabbtn" id="t_ins">Inserimento</button>
+        <button class="tabbtn" id="t_src">Ricerca</button>
+        <button class="tabbtn" id="t_mov">Movimenti</button>
+        <button class="tabbtn" id="t_acc">Conti</button>
+        <button class="tabbtn" id="t_cat">Categorie</button>
+        <button class="tabbtn" id="t_exp">Export</button>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="summary">
+      <div class="box">Entrate totali<br><b id="totIn" class="pos">€ 0,00</b></div>
+      <div class="box">Uscite totali<br><b id="totOut" class="neg">€ 0,00</b></div>
+      <div class="box">Saldo totale<br><b id="saldo">€ 0,00</b></div>
+    </div>
+
+    <div class="summary">
+      <div class="box">Entrate mese<br><b id="mIn" class="pos">€ 0,00</b></div>
+      <div class="box">Uscite mese<br><b id="mOut" class="neg">€ 0,00</b></div>
+      <div class="box">Saldo mese<br><b id="mSaldo">€ 0,00</b></div>
+    </div>
+
+    <div class="small muted" id="filteredHint"></div>
+  </div>
+
+  <!-- TAB: INSERIMENTO -->
+  <section id="tab_ins" class="card hidden">
+    <h3 style="margin:0 0 8px 0">Inserimento movimento</h3>
+    <div class="grid">
+      <div><div class="small">Data</div><input type="date" id="i_date"></div>
+      <div>
+        <div class="small">Tipo</div>
+        <select id="i_type">
+          <option value="IN">Entrata</option>
+          <option value="OUT">Uscita</option>
+        </select>
+      </div>
+      <div><div class="small">Conto</div><select id="i_account"></select></div>
+      <div><div class="small">Categoria</div><select id="i_category"></select></div>
+      <div><div class="small">Importo</div><input type="number" step="0.01" id="i_amount" placeholder="0,00"></div>
+      <div><div class="small">Descrizione</div><input id="i_desc" placeholder="Descrizione"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="primary" id="btnSaveMove">💾 Salva</button>
+      <button id="btnResetForm">↩ Reset</button>
+      <span class="muted" id="saveMsg"></span>
+    </div>
+  </section>
+
+  <!-- TAB: RICERCA + RISULTATI SOTTO -->
+  <section id="tab_src" class="card hidden">
+    <h3 style="margin:0 0 8px 0">Ricerca e filtri</h3>
+    <div class="grid">
+      <div><div class="small">Cerca (tutti i campi)</div><input id="s_text" placeholder="Data, conto, categoria, descrizione, importo..."></div>
+      <div><div class="small">Da</div><input type="date" id="s_from"></div>
+      <div><div class="small">A</div><input type="date" id="s_to"></div>
+      <div>
+        <div class="small">Tipo</div>
+        <select id="s_type">
+          <option value="">Tutti</option>
+          <option value="IN">Solo Entrate</option>
+          <option value="OUT">Solo Uscite</option>
+        </select>
+      </div>
+      <div><div class="small">Conto</div><select id="s_account"></select></div>
+      <div><div class="small">Categoria</div><select id="s_category"></select></div>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <button id="btnClearFilters">🧹 Pulisci filtri</button>
+      <span class="muted" id="searchCount"></span>
+    </div>
+
+    <div class="sep"></div>
+    <h3 style="margin:0">Risultati (accorpati per data)</h3>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th><th>Conto</th><th>Categoria</th><th>Tipo</th><th>Descrizione</th>
+          <th class="right">Importo</th><th>Azioni</th>
+        </tr>
+      </thead>
+      <tbody id="searchList"></tbody>
+    </table>
+  </section>
+
+  <!-- TAB: MOVIMENTI (TUTTI) PER MESE -->
+  <section id="tab_mov" class="card hidden">
+    <div class="row" style="justify-content:space-between">
+      <h3 style="margin:0">Tutti i movimenti (raggruppati per mese)</h3>
+      <span class="muted" id="movCount"></span>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th><th>Conto</th><th>Categoria</th><th>Tipo</th><th>Descrizione</th>
+          <th class="right">Importo</th><th>Azioni</th>
+        </tr>
+      </thead>
+      <tbody id="movList"></tbody>
+    </table>
+  </section>
+
+  <!-- TAB: CONTI -->
+  <section id="tab_acc" class="card hidden">
+    <h3 style="margin:0 0 8px 0">Gestione Conti</h3>
+    <div class="row">
+      <input id="a_new" placeholder="Nuovo conto">
+      <button class="primary" id="btnAddAccount">➕ Aggiungi</button>
+    </div>
+    <div class="sep"></div>
+    <div id="accountList" class="small"></div>
+  </section>
+
+  <!-- TAB: CATEGORIE -->
+  <section id="tab_cat" class="card hidden">
+    <h3 style="margin:0 0 8px 0">Gestione Categorie</h3>
+    <div class="row">
+      <input id="c_new" placeholder="Nuova categoria">
+      <button class="primary" id="btnAddCategory">➕ Aggiungi</button>
+    </div>
+    <div class="sep"></div>
+    <div id="categoryList" class="small"></div>
+  </section>
+
+  <!-- TAB: EXPORT -->
+  <section id="tab_exp" class="card hidden">
+    <h3 style="margin:0 0 8px 0">Export</h3>
+    <div class="small">Esporta i risultati filtrati (se i filtri sono vuoti, esporta tutto).</div>
+    <div class="row" style="margin-top:10px">
+      <button id="btnCSV">⬇️ CSV (Excel)</button>
+      <button id="btnXLS">⬇️ XLS (Excel)</button>
+      <button class="primary" id="btnPDF">🖨 PDF (stampa corretta)</button>
+    </div>
+    <div class="small muted" style="margin-top:8px" id="exportHint"></div>
+  </section>
+
+</div>
+
+<!-- MODAL EDIT -->
+<div class="modal-bg" id="editBg">
+  <div class="modal">
+    <h3 style="margin:0 0 10px 0">Modifica movimento</h3>
+    <div class="grid">
+      <div><div class="small">Data</div><input type="date" id="e_date"></div>
+      <div>
+        <div class="small">Tipo</div>
+        <select id="e_type">
+          <option value="IN">Entrata</option>
+          <option value="OUT">Uscita</option>
+        </select>
+      </div>
+      <div><div class="small">Conto</div><select id="e_account"></select></div>
+      <div><div class="small">Categoria</div><select id="e_category"></select></div>
+      <div><div class="small">Importo</div><input id="e_amount" type="number" step="0.01"></div>
+      <div><div class="small">Descrizione</div><input id="e_desc"></div>
+    </div>
+    <div class="footer">
+      <button class="primary" id="btnSaveEdit">💾 Salva</button>
+      <button id="btnCloseEdit">✖ Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================== FIX DEFINITIVO COMPATIBILITÀ DATI =====================
+   Versioni precedenti salvavano movimenti con campi:
+     data, tipo, conto, cat, importo, desc/descrizione
+   Versione nuova usa:
+     date, type, account, category, amount, desc
+   Questa funzione normalizza tutto appena caricato per evitare crash (localeCompare su undefined).
+*/
+
+const DBKEY = "CONTAB_MULTI_PRO_V1";
+
+const $ = (id)=>document.getElementById(id);
+const UI = {
+  errBox: $("errBox"),
+
+  userSelect:$("userSelect"), newUser:$("newUser"), btnAddUser:$("btnAddUser"), userHint:$("userHint"),
+
+  tabs:{ ins:$("t_ins"), src:$("t_src"), mov:$("t_mov"), acc:$("t_acc"), cat:$("t_cat"), exp:$("t_exp") },
+  panes:{ ins:$("tab_ins"), src:$("tab_src"), mov:$("tab_mov"), acc:$("tab_acc"), cat:$("tab_cat"), exp:$("tab_exp") },
+
+  totIn:$("totIn"), totOut:$("totOut"), saldo:$("saldo"),
+  mIn:$("mIn"), mOut:$("mOut"), mSaldo:$("mSaldo"),
+  filteredHint:$("filteredHint"),
+
+  i_date:$("i_date"), i_type:$("i_type"), i_account:$("i_account"), i_category:$("i_category"),
+  i_amount:$("i_amount"), i_desc:$("i_desc"),
+  btnSaveMove:$("btnSaveMove"), btnResetForm:$("btnResetForm"), saveMsg:$("saveMsg"),
+
+  s_text:$("s_text"), s_from:$("s_from"), s_to:$("s_to"), s_type:$("s_type"),
+  s_account:$("s_account"), s_category:$("s_category"),
+  btnClearFilters:$("btnClearFilters"),
+  searchList:$("searchList"), searchCount:$("searchCount"),
+
+  movList:$("movList"), movCount:$("movCount"),
+
+  a_new:$("a_new"), btnAddAccount:$("btnAddAccount"), accountList:$("accountList"),
+  c_new:$("c_new"), btnAddCategory:$("btnAddCategory"), categoryList:$("categoryList"),
+
+  btnCSV:$("btnCSV"), btnXLS:$("btnXLS"), btnPDF:$("btnPDF"), exportHint:$("exportHint"),
+
+  editBg:$("editBg"),
+  e_date:$("e_date"), e_type:$("e_type"), e_account:$("e_account"), e_category:$("e_category"),
+  e_amount:$("e_amount"), e_desc:$("e_desc"),
+  btnSaveEdit:$("btnSaveEdit"), btnCloseEdit:$("btnCloseEdit"),
+};
+
+window.onerror = (msg, src, line, col) => {
+  UI.errBox.style.display = "block";
+  UI.errBox.textContent = `Errore JS: ${msg} (riga ${line}:${col})`;
+};
+
+function escapeHtml(s){
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+function fmtEUR(x){
+  const n = Number(x||0);
+  return "€ " + n.toFixed(2).replace(".",",");
+}
+function todayISO(){
+  const d = new Date();
+  const z = n => String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;
+}
+function monthKey(iso){
+  const d = new Date(iso);
+  if(isNaN(d)) return "0000-00";
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+}
+function monthLabel(key){
+  const [y,m] = key.split("-");
+  const names = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+  const idx = Math.max(1, Math.min(12, parseInt(m,10))) - 1;
+  return `${names[idx]} ${y}`;
+}
+function cryptoId(){
+  return (crypto?.randomUUID?.() || ("id_"+Math.random().toString(16).slice(2)+Date.now()));
+}
+function fileSafe(s){
+  return String(s).replace(/[\\/:*?"<>|]+/g,"_");
+}
+
+/* ---------- DB ---------- */
+function defaultUser(){
+  return {
+    accounts:["Conto Principale"],
+    categories:["Spesa","Casa","Trasporti","Salute","Svago","Stipendio","Altro"],
+    moves:[]
+  };
+}
+function loadDB(){
+  try{
+    const raw = localStorage.getItem(DBKEY);
+    const parsed = JSON.parse(raw || "{}");
+    if(!parsed.users) parsed.users = {};
+    return parsed;
+  }catch{
+    return {users:{}};
+  }
+}
+let db = loadDB();
+
+function saveDB(){ localStorage.setItem(DBKEY, JSON.stringify(db)); }
+
+/* ---------- Normalizzazione MOVIMENTI (FIX definitivo) ---------- */
+function normalizeMove(m){
+  // supporta campi vecchi e nuovi
+  const date = m.date ?? m.data ?? "";
+  const type = m.type ?? m.tipo ?? "";
+  const account = m.account ?? m.conto ?? "";
+  const category = m.category ?? m.categoria ?? m.cat ?? "";
+  const amount = (m.amount ?? m.importo ?? 0);
+  const desc = m.desc ?? m.descrizione ?? m.description ?? "";
+
+  return {
+    id: m.id ?? cryptoId(),
+    date: String(date || ""),
+    type: (type==="IN"||type==="OUT") ? type : (String(type).toUpperCase()==="OUT"?"OUT":"IN"),
+    account: String(account || ""),
+    category: String(category || ""),
+    amount: Number(amount || 0),
+    desc: String(desc || "")
+  };
+}
+function normalizeDB(){
+  if(!db.users) db.users = {};
+
+  Object.keys(db.users).forEach(un=>{
+    const u = db.users[un] || {};
+    // conti/categorie con nomi vari
+    u.accounts = Array.isArray(u.accounts) ? u.accounts : (Array.isArray(u.conti)?u.conti:["Conto Principale"]);
+    u.categories = Array.isArray(u.categories) ? u.categories : (Array.isArray(u.cat)?u.cat:["Spesa","Altro"]);
+    u.moves = Array.isArray(u.moves) ? u.moves : (Array.isArray(u.records)?u.records:[]);
+
+    u.moves = u.moves.map(normalizeMove).filter(m=>m.date && m.account && m.category && !isNaN(m.amount));
+
+    // assicura default minimi
+    if(u.accounts.length===0) u.accounts = ["Conto Principale"];
+    if(u.categories.length===0) u.categories = ["Spesa","Altro"];
+
+    db.users[un] = u;
+  });
+
+  saveDB();
+}
+normalizeDB();
+
+/* ---------- UTENTE ---------- */
+function currentUserName(){ return UI.userSelect.value; }
+function currentUser(){ return currentUserName() ? db.users[currentUserName()] : null; }
+
+function loadUsers(selectName=null){
+  const users = Object.keys(db.users || {});
+  UI.userSelect.innerHTML = "";
+
+  if(users.length===0){
+    UI.userSelect.innerHTML = `<option value="">— Nessun utente —</option>`;
+    UI.userHint.textContent = "Crea un utente per iniziare.";
+    resetUI();
+    return;
+  }
+
+  users.sort((a,b)=>a.localeCompare(b)).forEach(u=>{
+    UI.userSelect.appendChild(new Option(u,u));
+  });
+
+  if(selectName && db.users[selectName]) UI.userSelect.value = selectName;
+  UI.userHint.textContent = "";
+
+  refreshPerUserUI();
+  renderAll();
+}
+
+function addUser(){
+  const name = (UI.newUser.value || "").trim();
+  if(!name) return;
+  if(db.users[name]) return alert("Utente già esistente.");
+
+  db.users[name] = defaultUser();
+  saveDB();
+
+  UI.newUser.value = "";
+  loadUsers(name);
+}
+
+/* ---------- Tabs ---------- */
+function showTab(id){
+  Object.keys(UI.panes).forEach(k=>{
+    UI.panes[k].classList.add("hidden");
+    UI.tabs[k].classList.remove("active");
+  });
+  UI.panes[id].classList.remove("hidden");
+  UI.tabs[id].classList.add("active");
+}
+
+/* ---------- Conti/Categorie ---------- */
+function refreshPerUserUI(){
+  const u = currentUser();
+  if(!u) return;
+
+  // selects inserimento + ricerca + edit
+  UI.i_account.innerHTML = "";
+  UI.i_category.innerHTML = "";
+  UI.s_account.innerHTML = "";
+  UI.s_category.innerHTML = "";
+  UI.e_account.innerHTML = "";
+  UI.e_category.innerHTML = "";
+
+  UI.s_account.appendChild(new Option("Tutti i conti",""));
+  UI.s_category.appendChild(new Option("Tutte le categorie",""));
+
+  u.accounts.forEach(a=>{
+    UI.i_account.appendChild(new Option(a,a));
+    UI.e_account.appendChild(new Option(a,a));
+    UI.s_account.appendChild(new Option(a,a));
+  });
+  u.categories.forEach(c=>{
+    UI.i_category.appendChild(new Option(c,c));
+    UI.e_category.appendChild(new Option(c,c));
+    UI.s_category.appendChild(new Option(c,c));
+  });
+
+  UI.accountList.innerHTML = u.accounts.map(a=>`
+    <div class="row" style="justify-content:space-between">
+      <span>• ${escapeHtml(a)}</span>
+      <button class="danger" data-del-acc="${encodeURIComponent(a)}">Rimuovi</button>
+    </div>
+  `).join("") || `<span class="muted">Nessun conto.</span>`;
+
+  UI.categoryList.innerHTML = u.categories.map(c=>`
+    <div class="row" style="justify-content:space-between">
+      <span>• ${escapeHtml(c)}</span>
+      <button class="danger" data-del-cat="${encodeURIComponent(c)}">Rimuovi</button>
+    </div>
+  `).join("") || `<span class="muted">Nessuna categoria.</span>`;
+
+  if(!UI.i_date.value) UI.i_date.value = todayISO();
+}
+
+function addAccount(){
+  const u = currentUser(); if(!u) return;
+  const v = (UI.a_new.value||"").trim();
+  if(!v) return;
+  if(u.accounts.includes(v)) return alert("Conto già presente.");
+  u.accounts.push(v);
+  saveDB();
+  UI.a_new.value="";
+  refreshPerUserUI();
+  renderAll();
+}
+function addCategory(){
+  const u = currentUser(); if(!u) return;
+  const v = (UI.c_new.value||"").trim();
+  if(!v) return;
+  if(u.categories.includes(v)) return alert("Categoria già presente.");
+  u.categories.push(v);
+  saveDB();
+  UI.c_new.value="";
+  refreshPerUserUI();
+  renderAll();
+}
+
+/* Delegation remove acc/cat */
+document.addEventListener("click",(ev)=>{
+  const acc = ev.target?.getAttribute?.("data-del-acc");
+  if(acc!=null){
+    const val = decodeURIComponent(acc);
+    const u=currentUser(); if(!u) return;
+    if(!confirm("Rimuovere il conto? (I movimenti restano con il valore salvato)")) return;
+    u.accounts = u.accounts.filter(x=>x!==val);
+    saveDB(); refreshPerUserUI(); renderAll();
+  }
+  const cat = ev.target?.getAttribute?.("data-del-cat");
+  if(cat!=null){
+    const val = decodeURIComponent(cat);
+    const u=currentUser(); if(!u) return;
+    if(!confirm("Rimuovere la categoria? (I movimenti restano con il valore salvato)")) return;
+    u.categories = u.categories.filter(x=>x!==val);
+    saveDB(); refreshPerUserUI(); renderAll();
+  }
+});
+
+/* ---------- Movimenti CRUD ---------- */
+function resetForm(keepDate=false){
+  if(!keepDate) UI.i_date.value = todayISO();
+  UI.i_amount.value = "";
+  UI.i_desc.value = "";
+}
+function saveMove(){
+  const u = currentUser(); if(!u) return alert("Seleziona un utente.");
+
+  const m = normalizeMove({
+    date: UI.i_date.value,
+    type: UI.i_type.value,
+    account: UI.i_account.value,
+    category: UI.i_category.value,
+    amount: UI.i_amount.value,
+    desc: UI.i_desc.value
+  });
+
+  if(!m.date || !m.account || !m.category || isNaN(m.amount) || !m.desc.trim()){
+    return alert("Compila Data, Conto, Categoria, Importo e Descrizione.");
+  }
+
+  u.moves.unshift(m);
+  saveDB();
+
+  UI.saveMsg.textContent = "Salvato ✔";
+  setTimeout(()=>UI.saveMsg.textContent="", 1200);
+
+  resetForm(true);
+  renderAll();
+}
+function deleteMove(id){
+  const u=currentUser(); if(!u) return;
+  if(!confirm("Eliminare movimento?")) return;
+  u.moves = u.moves.filter(x=>x.id!==id);
+  saveDB();
+  renderAll();
+}
+
+/* ---------- Edit modal ---------- */
+let editingId=null;
+function openEdit(id){
+  const u=currentUser(); if(!u) return;
+  const m=u.moves.find(x=>x.id===id);
+  if(!m) return;
+
+  editingId=id;
+  UI.e_date.value = m.date;
+  UI.e_type.value = m.type;
+  UI.e_account.value = m.account;
+  UI.e_category.value = m.category;
+  UI.e_amount.value = m.amount;
+  UI.e_desc.value = m.desc;
+
+  UI.editBg.style.display="flex";
+}
+function closeEdit(){
+  UI.editBg.style.display="none";
+  editingId=null;
+}
+function saveEdit(){
+  const u=currentUser(); if(!u) return;
+  const m=u.moves.find(x=>x.id===editingId);
+  if(!m) return;
+
+  const updated = normalizeMove({
+    id: m.id,
+    date: UI.e_date.value,
+    type: UI.e_type.value,
+    account: UI.e_account.value,
+    category: UI.e_category.value,
+    amount: UI.e_amount.value,
+    desc: UI.e_desc.value
+  });
+
+  if(!updated.date || !updated.account || !updated.category || isNaN(updated.amount) || !updated.desc.trim()){
+    return alert("Compila tutti i campi.");
+  }
+
+  Object.assign(m, updated);
+  saveDB();
+  closeEdit();
+  renderAll();
+}
+
+/* Delegation edit/delete */
+document.addEventListener("click",(ev)=>{
+  const del = ev.target?.getAttribute?.("data-del");
+  if(del) deleteMove(del);
+  const edt = ev.target?.getAttribute?.("data-edit");
+  if(edt) openEdit(edt);
+});
+
+/* ---------- Filters ---------- */
+function filtersActive(){
+  return Boolean(
+    (UI.s_text.value||"").trim() ||
+    UI.s_from.value || UI.s_to.value ||
+    UI.s_type.value || UI.s_account.value || UI.s_category.value
+  );
+}
+function clearFilters(){
+  UI.s_text.value="";
+  UI.s_from.value="";
+  UI.s_to.value="";
+  UI.s_type.value="";
+  UI.s_account.value="";
+  UI.s_category.value="";
+  renderAll();
+}
+function passesFilters(m){
+  const q=(UI.s_text.value||"").toLowerCase().trim();
+  const da=UI.s_from.value;
+  const a=UI.s_to.value;
+  const t=UI.s_type.value;
+  const acc=UI.s_account.value;
+  const cat=UI.s_category.value;
+
+  if(da && m.date < da) return false;
+  if(a && m.date > a) return false;
+  if(t && m.type !== t) return false;
+  if(acc && m.account !== acc) return false;
+  if(cat && m.category !== cat) return false;
+
+  if(q){
+    const all=[m.date,m.type,m.account,m.category,String(m.amount),m.desc].join(" ").toLowerCase();
+    if(!all.includes(q)) return false;
+  }
+  return true;
+}
+
+/* ---------- Grouping ---------- */
+function groupByDate(arr){
+  const g={};
+  arr.forEach(m=>(g[m.date] ||= []).push(m));
+  return g;
+}
+function groupByMonth(arr){
+  const g={};
+  arr.forEach(m=>{
+    const k = monthKey(m.date);
+    (g[k] ||= []).push(m);
+  });
+  return g;
+}
+
+/* ---------- Totals ---------- */
+function calcTotals(arr){
+  let sin=0,sout=0,msin=0,msout=0;
+  const now=new Date(), mm=now.getMonth(), yy=now.getFullYear();
+  arr.forEach(r=>{
+    if(r.type==="IN") sin+=r.amount; else sout+=r.amount;
+    const d=new Date(r.date);
+    if(!isNaN(d) && d.getMonth()===mm && d.getFullYear()===yy){
+      if(r.type==="IN") msin+=r.amount; else msout+=r.amount;
+    }
+  });
+  return {sin,sout,msin,msout};
+}
+
+/* ---------- Render ---------- */
+let lastFilteredCache=[];
+
+function resetUI(){
+  UI.totIn.textContent=fmtEUR(0);
+  UI.totOut.textContent=fmtEUR(0);
+  UI.saldo.textContent=fmtEUR(0);
+  UI.mIn.textContent=fmtEUR(0);
+  UI.mOut.textContent=fmtEUR(0);
+  UI.mSaldo.textContent=fmtEUR(0);
+  UI.filteredHint.textContent="";
+  UI.searchCount.textContent="";
+  UI.movCount.textContent="";
+  UI.searchList.innerHTML=`<tr><td colspan="7" class="notfound">Non Trovato</td></tr>`;
+  UI.movList.innerHTML=`<tr><td colspan="7" class="notfound">Non Trovato</td></tr>`;
+}
+
+function renderAll(){
+  const u=currentUser();
+  if(!u){ resetUI(); return; }
+
+  // sicurezza: re-normalizza eventuali nuovi record vecchio formato
+  u.moves = (u.moves||[]).map(normalizeMove);
+  saveDB();
+
+  const all=u.moves||[];
+  const tAll=calcTotals(all);
+
+  UI.totIn.textContent=fmtEUR(tAll.sin);
+  UI.totOut.textContent=fmtEUR(tAll.sout);
+  UI.saldo.textContent=fmtEUR(tAll.sin-tAll.sout);
+  UI.mIn.textContent=fmtEUR(tAll.msin);
+  UI.mOut.textContent=fmtEUR(tAll.msout);
+  UI.mSaldo.textContent=fmtEUR(tAll.msin-tAll.msout);
+
+  const filtered=all.filter(passesFilters);
+  lastFilteredCache = filtered.slice();
+
+  const tF=calcTotals(filtered);
+  UI.filteredHint.textContent =
+    `Filtri attivi: ${filtersActive() ? "Sì" : "No"} · `+
+    `Risultati: ${filtered.length} · `+
+    `Entrate ${fmtEUR(tF.sin)} · Uscite ${fmtEUR(tF.sout)} · Saldo ${fmtEUR(tF.sin-tF.sout)}`;
+
+  UI.searchCount.textContent = `${filtered.length} movimenti trovati`;
+  UI.movCount.textContent = `${all.length} movimenti totali`;
+
+  UI.exportHint.textContent = filtersActive()
+    ? "Export: verranno esportati solo i risultati filtrati."
+    : "Export: verranno esportati tutti i movimenti (nessun filtro).";
+
+  renderSearchResults(filtered);
+  renderMovementsByMonth(all);
+}
+
+function renderSearchResults(filtered){
+  UI.searchList.innerHTML="";
+  if(filtered.length===0){
+    UI.searchList.innerHTML=`<tr><td colspan="7" class="notfound">Non Trovato</td></tr>`;
+    return;
+  }
+
+  const grouped=groupByDate(filtered);
+  const days=Object.keys(grouped).sort().reverse();
+
+  days.forEach(day=>{
+    const items=grouped[day];
+    let din=0,dout=0;
+    items.forEach(m=>{ if(m.type==="IN") din+=m.amount; else dout+=m.amount; });
+    const ds=din-dout;
+
+    UI.searchList.insertAdjacentHTML("beforeend", `
+      <tr class="groupRow">
+        <td colspan="7">
+          <div class="row" style="justify-content:space-between">
+            <b>${escapeHtml(day)}</b>
+            <span class="muted">
+              Entrate <span class="pos">${fmtEUR(din)}</span> ·
+              Uscite <span class="neg">${fmtEUR(dout)}</span> ·
+              Saldo <b>${fmtEUR(ds)}</b>
+            </span>
+          </div>
+        </td>
+      </tr>
+    `);
+
+    items.forEach(m=>{
+      UI.searchList.insertAdjacentHTML("beforeend", `
+        <tr>
+          <td class="muted"></td>
+          <td>${escapeHtml(m.account)}</td>
+          <td>${escapeHtml(m.category)}</td>
+          <td>${m.type==="IN" ? "Entrata" : "Uscita"}</td>
+          <td>${escapeHtml(m.desc)}</td>
+          <td class="right ${m.type==="IN" ? "pos" : "neg"}">${fmtEUR(m.amount)}</td>
+          <td class="actions">
+            <button data-edit="${m.id}">✏️</button>
+            <button class="danger" data-del="${m.id}">🗑</button>
+          </td>
+        </tr>
+      `);
+    });
+  });
+}
+
+function renderMovementsByMonth(all){
+  UI.movList.innerHTML="";
+  if(all.length===0){
+    UI.movList.innerHTML=`<tr><td colspan="7" class="notfound">Non Trovato</td></tr>`;
+    return;
+  }
+
+  const groupedM=groupByMonth(all);
+  const months=Object.keys(groupedM).sort().reverse();
+
+  months.forEach(mkey=>{
+    const arr=groupedM[mkey].slice().sort((a,b)=> (b.date||"").localeCompare(a.date||"")); // safe
+
+    let min=0,mout=0;
+    arr.forEach(x=>{ if(x.type==="IN") min+=x.amount; else mout+=x.amount; });
+
+    UI.movList.insertAdjacentHTML("beforeend", `
+      <tr class="monthRow">
+        <td colspan="7">
+          <div class="row" style="justify-content:space-between">
+            <b>${escapeHtml(monthLabel(mkey))}</b>
+            <span class="muted">
+              Entrate <span class="pos">${fmtEUR(min)}</span> ·
+              Uscite <span class="neg">${fmtEUR(mout)}</span> ·
+              Saldo <b>${fmtEUR(min-mout)}</b>
+            </span>
+          </div>
+        </td>
+      </tr>
+    `);
+
+    const groupedD=groupByDate(arr);
+    const days=Object.keys(groupedD).sort().reverse();
+
+    days.forEach(day=>{
+      const items=groupedD[day];
+      let din=0,dout=0;
+      items.forEach(x=>{ if(x.type==="IN") din+=x.amount; else dout+=x.amount; });
+      const ds=din-dout;
+
+      UI.movList.insertAdjacentHTML("beforeend", `
+        <tr class="groupRow">
+          <td colspan="7">
+            <div class="row" style="justify-content:space-between">
+              <span><b>${escapeHtml(day)}</b></span>
+              <span class="muted">
+                Entrate <span class="pos">${fmtEUR(din)}</span> ·
+                Uscite <span class="neg">${fmtEUR(dout)}</span> ·
+                Saldo <b>${fmtEUR(ds)}</b>
+              </span>
+            </div>
+          </td>
+        </tr>
+      `);
+
+      items.forEach(x=>{
+        UI.movList.insertAdjacentHTML("beforeend", `
+          <tr>
+            <td class="muted"></td>
+            <td>${escapeHtml(x.account)}</td>
+            <td>${escapeHtml(x.category)}</td>
+            <td>${x.type==="IN" ? "Entrata" : "Uscita"}</td>
+            <td>${escapeHtml(x.desc)}</td>
+            <td class="right ${x.type==="IN" ? "pos" : "neg"}">${fmtEUR(x.amount)}</td>
+            <td class="actions">
+              <button data-edit="${x.id}">✏️</button>
+              <button class="danger" data-del="${x.id}">🗑</button>
+            </td>
+          </tr>
+        `);
+      });
+    });
+  });
+}
+
+/* ---------- EXPORT ---------- */
+function buildExportRows(){
+  const u=currentUser(); if(!u) return [];
+  const src = (filtersActive() ? lastFilteredCache : (u.moves||[])).slice()
+    .sort((a,b)=> (a.date||"").localeCompare(b.date||""));
+
+  const out=[];
+  out.push(["Utente", currentUserName()]);
+  out.push(["Esportazione", new Date().toLocaleString("it-IT")]);
+  out.push([]);
+  out.push(["Data","Conto","Categoria","Tipo","Descrizione","Importo"]);
+  src.forEach(m=>{
+    out.push([
+      m.date,
+      m.account,
+      m.category,
+      m.type==="IN" ? "Entrata" : "Uscita",
+      m.desc,
+      (m.amount||0).toFixed(2).replace(".",",")
+    ]);
+  });
+  return out;
+}
+function toCSV(rows){
+  return rows.map(r => r.map(cell=>{
+    const s=String(cell??""); const esc=s.replace(/"/g,'""');
+    return /[",\n\r;]/.test(esc) ? `"${esc}"` : esc;
+  }).join(";")).join("\n");
+}
+function toXlsHtml(rows){
+  const trs=rows.map(r=>`<tr>${r.map(c=>`<td>${escapeHtml(String(c??""))}</td>`).join("")}</tr>`).join("");
+  return `<!doctype html><html><head><meta charset="utf-8"></head><body><table border="1">${trs}</table></body></html>`;
+}
+function downloadBlob(content, filename, mime){
+  const blob=new Blob([content],{type:mime});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+function exportCSV(){ downloadBlob(toCSV(buildExportRows()), fileSafe(`contabilita_${currentUserName()}_${todayISO()}.csv`), "text/csv;charset=utf-8"); }
+function exportXLS(){ downloadBlob(toXlsHtml(buildExportRows()), fileSafe(`contabilita_${currentUserName()}_${todayISO()}.xls`), "application/vnd.ms-excel;charset=utf-8"); }
+
+/* PDF robusto: Blob + finestra dedicata */
+function exportPDF(){
+  const u=currentUser(); if(!u) return alert("Seleziona un utente.");
+  const all=u.moves||[];
+  const exportArr = (filtersActive() ? lastFilteredCache : all).slice();
+
+  const tAll=calcTotals(all);
+  const tE=calcTotals(exportArr);
+
+  const filtersTxt = [
+    (UI.s_text.value||"").trim() ? `Testo: "${escapeHtml(UI.s_text.value)}"` : null,
+    UI.s_from.value ? `Da: ${UI.s_from.value}` : null,
+    UI.s_to.value ? `A: ${UI.s_to.value}` : null,
+    UI.s_type.value ? `Tipo: ${UI.s_type.value}` : null,
+    UI.s_account.value ? `Conto: ${escapeHtml(UI.s_account.value)}` : null,
+    UI.s_category.value ? `Categoria: ${escapeHtml(UI.s_category.value)}` : null,
+  ].filter(Boolean).join(" · ") || "Nessun filtro";
+
+  const grouped=groupByDate(exportArr);
+  const days=Object.keys(grouped).sort().reverse();
+
+  let rowsHtml="";
+  if(exportArr.length===0){
+    rowsHtml = `<tr><td colspan="6" style="color:#ef4444;font-weight:800;text-align:center">Non Trovato</td></tr>`;
+  }else{
+    days.forEach(day=>{
+      const items=grouped[day];
+      let din=0,dout=0;
+      items.forEach(m=>{ if(m.type==="IN") din+=m.amount; else dout+=m.amount; });
+      const ds=din-dout;
+
+      rowsHtml += `<tr style="background:#f3f4f6;font-weight:700">
+        <td colspan="6">${escapeHtml(day)} — Entrate ${fmtEUR(din)} · Uscite ${fmtEUR(dout)} · Saldo ${fmtEUR(ds)}</td>
+      </tr>`;
+      items.forEach(m=>{
+        rowsHtml += `<tr>
+          <td></td>
+          <td>${escapeHtml(m.account)}</td>
+          <td>${escapeHtml(m.category)}</td>
+          <td>${m.type==="IN" ? "Entrata" : "Uscita"}</td>
+          <td>${escapeHtml(m.desc)}</td>
+          <td style="text-align:right">${fmtEUR(m.amount)}</td>
+        </tr>`;
+      });
+    });
+  }
+
+  const printable = `<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Stampa Contabilità</title>
+  <style>
+    body{font-family:Arial;margin:24px;color:#000}
+    h1{margin:0 0 6px 0}
+    .small{color:#444;font-size:12px;margin-bottom:14px}
+    .row{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0}
+    .box{border:1px solid #ccc;border-radius:10px;padding:10px 12px;min-width:180px}
+    .box b{font-size:16px}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{border-bottom:1px solid #ddd;padding:8px 6px;text-align:left;font-size:13px}
+    th{text-transform:uppercase;font-size:11px;color:#333}
+    .muted{color:#444}
+  </style></head>
+  <body onload="window.print()">
+    <h1>Contabilità — ${escapeHtml(currentUserName())}</h1>
+    <div class="small">Generato: ${escapeHtml(new Date().toLocaleString("it-IT"))}</div>
+
+    <div class="row">
+      <div class="box">Entrate totali<br><b>${fmtEUR(tAll.sin)}</b></div>
+      <div class="box">Uscite totali<br><b>${fmtEUR(tAll.sout)}</b></div>
+      <div class="box">Saldo totale<br><b>${fmtEUR(tAll.sin-tAll.sout)}</b></div>
+    </div>
+
+    <div class="row">
+      <div class="box">Entrate mese<br><b>${fmtEUR(tAll.msin)}</b></div>
+      <div class="box">Uscite mese<br><b>${fmtEUR(tAll.msout)}</b></div>
+      <div class="box">Saldo mese<br><b>${fmtEUR(tAll.msin-tAll.msout)}</b></div>
+    </div>
+
+    <div class="row">
+      <div class="box" style="min-width:100%">
+        Filtri: <span class="muted">${filtersTxt}</span><br>
+        Risultati: <b>${exportArr.length}</b> — Entrate <b>${fmtEUR(tE.sin)}</b> · Uscite <b>${fmtEUR(tE.sout)}</b> · Saldo <b>${fmtEUR(tE.sin-tE.sout)}</b>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr>
+        <th>Data</th><th>Conto</th><th>Categoria</th><th>Tipo</th><th>Descrizione</th><th style="text-align:right">Importo</th>
+      </tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  </body></html>`;
+
+  const blob=new Blob([printable],{type:"text/html;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const w=window.open(url,"_blank");
+  if(!w){
+    alert("Popup bloccato: abilita i popup per stampare in PDF.");
+    URL.revokeObjectURL(url);
+    return;
+  }
+  setTimeout(()=>URL.revokeObjectURL(url),15000);
+}
+
+/* ---------- Eventi UI ---------- */
+UI.btnAddUser.addEventListener("click", addUser);
+UI.userSelect.addEventListener("change", ()=>{ refreshPerUserUI(); renderAll(); });
+
+UI.btnSaveMove.addEventListener("click", saveMove);
+UI.btnResetForm.addEventListener("click", ()=>resetForm(false));
+
+["input","change"].forEach(evt=>{
+  UI.s_text.addEventListener(evt, renderAll);
+  UI.s_from.addEventListener(evt, renderAll);
+  UI.s_to.addEventListener(evt, renderAll);
+  UI.s_type.addEventListener(evt, renderAll);
+  UI.s_account.addEventListener(evt, renderAll);
+  UI.s_category.addEventListener(evt, renderAll);
+});
+UI.btnClearFilters.addEventListener("click", clearFilters);
+
+UI.btnAddAccount.addEventListener("click", addAccount);
+UI.btnAddCategory.addEventListener("click", addCategory);
+
+UI.btnCSV.addEventListener("click", exportCSV);
+UI.btnXLS.addEventListener("click", exportXLS);
+UI.btnPDF.addEventListener("click", exportPDF);
+
+UI.btnSaveEdit.addEventListener("click", saveEdit);
+UI.btnCloseEdit.addEventListener("click", closeEdit);
+
+/* Tabs */
+UI.tabs.ins.addEventListener("click", ()=>showTab("ins"));
+UI.tabs.src.addEventListener("click", ()=>showTab("src"));
+UI.tabs.mov.addEventListener("click", ()=>showTab("mov"));
+UI.tabs.acc.addEventListener("click", ()=>showTab("acc"));
+UI.tabs.cat.addEventListener("click", ()=>showTab("cat"));
+UI.tabs.exp.addEventListener("click", ()=>showTab("exp"));
+
+/* Init */
+UI.i_date.value = todayISO();
+loadUsers();
+showTab("src");
+renderAll();
+</script>
+</body>
+</html>
